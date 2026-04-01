@@ -11,10 +11,10 @@ import {
 } from "drizzle-orm/pg-core";
 
 //
-// 🔐 USERS (NÃO MEXE - BetterAuth usa string)
+// USERS (NÃO MEXE - BetterAuth usa string)
 //
 export const usersTable = pgTable("users", {
-  id: text("id").primaryKey(), // ⚠️ mantém text
+  id: text("id").primaryKey(), // mantém text
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull(),
@@ -28,7 +28,7 @@ export const usersTableRelations = relations(usersTable, ({ many }) => ({
 }));
 
 //
-// 🔐 SESSIONS
+// SESSIONS
 //
 export const sessionsTable = pgTable("sessions", {
   id: text("id").primaryKey(),
@@ -44,7 +44,7 @@ export const sessionsTable = pgTable("sessions", {
 });
 
 //
-// 🔐 ACCOUNTS
+// ACCOUNTS
 //
 export const accountsTable = pgTable("accounts", {
   id: text("id").primaryKey(),
@@ -65,7 +65,7 @@ export const accountsTable = pgTable("accounts", {
 });
 
 //
-// 🔐 VERIFICATIONS
+// VERIFICATIONS
 //
 export const verificationsTable = pgTable("verifications", {
   id: text("id").primaryKey(),
@@ -77,7 +77,7 @@ export const verificationsTable = pgTable("verifications", {
 });
 
 //
-// 🏥 CLINICS
+// CLINICS
 //
 export const clinicsTable = pgTable("clinics", {
   id: serial("id").primaryKey(), // ✅ AUTO INCREMENT
@@ -89,7 +89,7 @@ export const clinicsTable = pgTable("clinics", {
 });
 
 //
-// 🔗 USERS ↔ CLINICS
+// USERS ↔ CLINICS
 //
 export const usersToClinicsTable = pgTable("users_to_clinics", {
   userId: text("user_id") // ⚠️ mantém text
@@ -126,7 +126,7 @@ export const clinicsTableRelations = relations(clinicsTable, ({ many }) => ({
 }));
 
 //
-// 👨‍⚕️ DOCTORS
+// DOCTORS
 //
 export const doctorsTable = pgTable("doctors", {
   id: serial("id").primaryKey(),
@@ -159,7 +159,7 @@ export const doctorsTableRelations = relations(
 );
 
 //
-// 👤 PATIENTS
+// PATIENTS
 //
 export const patientSexEnum = pgEnum("patient_sex", ["male", "female"]);
 
@@ -190,20 +190,27 @@ export const patientsTableRelations = relations(
 );
 
 //
-// 📅 APPOINTMENTS
+// APPOINTMENTS
 //
 export const appointmentsTable = pgTable("appointments", {
   id: serial("id").primaryKey(),
   date: timestamp("date").notNull(),
+
   clinicId: integer("clinic_id")
     .notNull()
     .references(() => clinicsTable.id, { onDelete: "cascade" }),
+
   patientId: integer("patient_id")
     .notNull()
     .references(() => patientsTable.id, { onDelete: "cascade" }),
+
   doctorId: integer("doctor_id")
     .notNull()
     .references(() => doctorsTable.id, { onDelete: "cascade" }),
+
+  // NOVO CAMPO
+  appointmentPriceInCents: integer("appointment_price_in_cents").notNull(),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

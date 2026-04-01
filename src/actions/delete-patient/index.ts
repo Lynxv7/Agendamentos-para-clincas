@@ -6,14 +6,14 @@ import { headers } from "next/headers";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { doctorsTable } from "@/db/schema";
+import { patientsTable } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { actionClient } from "@/lib/next-safe-action";
 
-export const deleteDoctor = actionClient
+export const deletePatient = actionClient
   .schema(
     z.object({
-      id: z.number(), // corrigido
+      id: z.number(),
     }),
   )
   .action(async ({ parsedInput }) => {
@@ -21,7 +21,6 @@ export const deleteDoctor = actionClient
       headers: await headers(),
     });
 
-    // tipagem correta
     type UserWithClinic = {
       id: string;
       clinic?: {
@@ -39,23 +38,19 @@ export const deleteDoctor = actionClient
       throw new Error("Clinic not found");
     }
 
-    // busca médico
-    const doctor = await db.query.doctorsTable.findFirst({
-      where: eq(doctorsTable.id, parsedInput.id),
+    const patient = await db.query.patientsTable.findFirst({
+      where: eq(patientsTable.id, parsedInput.id),
     });
 
-    if (!doctor) {
-      throw new Error("Médico não encontrado");
+    if (!patient) {
+      throw new Error("Paciente não encontrado");
     }
 
-    // segurança
-    if (doctor.clinicId !== user.clinic.id) {
-      throw new Error("Médico não encontrado");
+    if (patient.clinicId !== user.clinic.id) {
+      throw new Error("Paciente não encontrado");
     }
 
-    // delete
-    await db.delete(doctorsTable).where(eq(doctorsTable.id, parsedInput.id));
+    await db.delete(patientsTable).where(eq(patientsTable.id, parsedInput.id));
 
-    // revalida
-    revalidatePath("/doctors");
+    revalidatePath("/patients");
   });

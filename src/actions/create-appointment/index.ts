@@ -1,24 +1,18 @@
 "use server";
 
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
+import { and, eq } from "drizzle-orm";
+
 import { db } from "@/db";
-import { appointmentsTable } from "@/db/schema";
+import { appointmentsTable, doctorsTable } from "@/db/schema";
+import { getAvailabilityTimeInTimezone } from "@/helpers/times";
 import { auth } from "@/lib/auth";
+import { dayjs } from "@/lib/dayjs";
 import { actionClient } from "@/lib/next-safe-action";
 
-import { getAvailableTimes } from "../get-available-times";
 import { createAppointmentSchema } from "./schema";
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
-// 🔥 mesmo timezone do sistema inteiro
-const TZ = "America/Sao_Paulo";
 
 type SessionUser = {
   clinic?: {
@@ -29,9 +23,13 @@ type SessionUser = {
 export const createAppointment = actionClient
   .schema(createAppointmentSchema)
   .action(async ({ parsedInput }) => {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    // Buscar sessão e médico em paralelo para reduzir latência
+    const [session, doctor] = await Promise.all([
+      auth.api.getSession({ headers: await headers() }),
+      db.query.doctorsTable.findFirst({
+        where: eq(doctorsTable.id, Number(parsedInput.doctorId)),
+      }),
+    ]);
 
     if (!session?.user) {
       throw new Error("Unauthorized");
@@ -43,39 +41,56 @@ export const createAppointment = actionClient
       throw new Error("Clinic not found");
     }
 
-    // ✅ interpretar como UTC (vem do frontend)
-    const appointmentUTC = dayjs.utc(parsedInput.date);
+    const appointmentUTC = dayjs(parsedInput.date);
 
-    // ✅ converter para horário local (para validação)
-    const appointmentLocal = appointmentUTC.tz(TZ);
-
-    const formattedDate = appointmentLocal.format("YYYY-MM-DD");
-    const formattedTime = appointmentLocal.format("HH:mm");
-
-    // 🔍 valida disponibilidade
-    const availableTimes = await getAvailableTimes({
-      doctorId: String(parsedInput.doctorId),
-      date: formattedDate,
-    });
-
-    if (!availableTimes?.data) {
-      throw new Error("No available times");
+    if (!appointmentUTC.isValid()) {
+      throw new Error("Invalid date");
     }
 
-    const isTimeAvailable = availableTimes.data.some(
-      (time) => time.value === formattedTime && time.available,
+    if (!doctor || doctor.clinicId !== user.clinic.id) {
+      throw new Error("Médico não encontrado");
+    }
+
+    const timeZone = parsedInput.timeZone;
+    const formattedDate = appointmentUTC.tz(timeZone).format("YYYY-MM-DD");
+    const formattedTime = appointmentUTC.tz(timeZone).format("HH:mm");
+
+    const localFrom = getAvailabilityTimeInTimezone(
+      doctor.availableFromTime,
+      timeZone,
+      formattedDate,
+    );
+    const localTo = getAvailabilityTimeInTimezone(
+      doctor.availableToTime,
+      timeZone,
+      formattedDate,
     );
 
-    if (!isTimeAvailable) {
-      throw new Error("Time not available");
+    const slot = dayjs.tz(`${formattedDate} ${formattedTime}`, timeZone);
+    const from = dayjs.tz(`${formattedDate} ${localFrom}`, timeZone);
+    const to = dayjs.tz(`${formattedDate} ${localTo}`, timeZone);
+
+    if (slot.isBefore(from) || !slot.isBefore(to)) {
+      throw new Error("Horário fora da disponibilidade do médico");
     }
 
-    // 💾 salvar em UTC (PERFEITO)
+    // Proteção contra duplo agendamento (race condition)
+    const existing = await db.query.appointmentsTable.findFirst({
+      where: and(
+        eq(appointmentsTable.doctorId, Number(parsedInput.doctorId)),
+        eq(appointmentsTable.date, appointmentUTC.toDate()),
+      ),
+    });
+
+    if (existing) {
+      throw new Error("Time already booked");
+    }
+
     await db.insert(appointmentsTable).values({
       patientId: Number(parsedInput.patientId),
       doctorId: Number(parsedInput.doctorId),
       clinicId: user.clinic.id,
-      date: appointmentUTC.toDate(), // 🔥 UTC correto
+      date: appointmentUTC.toDate(), // ✅ UTC correto
       appointmentPriceInCents: Math.round(parsedInput.appointmentPrice * 100),
     });
 

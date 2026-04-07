@@ -2,6 +2,8 @@
 
 import { MoreVerticalIcon, TrashIcon } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { deleteAppointment } from "@/actions/delete-appointment";
@@ -29,14 +31,14 @@ import { appointmentsTable } from "@/db/schema";
 
 type AppointmentWithRelations = typeof appointmentsTable.$inferSelect & {
   patient: {
-    id: number; // ✅ corrigido
+    id: number;
     name: string;
     email: string;
     phoneNumber: string;
     sex: "male" | "female";
   };
   doctor: {
-    id: number; // ✅ corrigido
+    id: number;
     name: string;
     specialty: string;
   };
@@ -49,16 +51,23 @@ interface AppointmentsTableActionsProps {
 const AppointmentsTableActions = ({
   appointment,
 }: AppointmentsTableActionsProps) => {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+
   const deleteAppointmentAction = useAction(deleteAppointment, {
     onSuccess: () => {
       toast.success("Agendamento deletado com sucesso.");
+      setOpen(false);
+      router.refresh();
     },
-    onError: () => {
-      toast.error("Erro ao deletar agendamento.");
+    onError: ({ error }) => {
+      toast.error(error.serverError ?? "Erro ao deletar agendamento.");
     },
   });
 
   const handleDeleteAppointmentClick = () => {
+    if (deleteAppointmentAction.isPending) return;
+
     deleteAppointmentAction.execute({ id: appointment.id });
   };
 
@@ -75,9 +84,11 @@ const AppointmentsTableActions = ({
 
         <DropdownMenuSeparator />
 
-        <AlertDialog>
+        <AlertDialog open={open} onOpenChange={setOpen}>
           <AlertDialogTrigger asChild>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={(e) => e.preventDefault()} // ✅ ESSENCIAL
+            >
               <TrashIcon className="mr-2 h-4 w-4" />
               Excluir
             </DropdownMenuItem>
@@ -94,7 +105,9 @@ const AppointmentsTableActions = ({
             </AlertDialogHeader>
 
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel disabled={deleteAppointmentAction.isPending}>
+                Cancelar
+              </AlertDialogCancel>
 
               <AlertDialogAction
                 onClick={handleDeleteAppointmentClick}

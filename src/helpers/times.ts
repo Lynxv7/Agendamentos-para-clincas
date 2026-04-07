@@ -1,4 +1,4 @@
-import dayjs from "dayjs";
+import { dayjs } from "@/lib/dayjs";
 
 export const generateTimeSlots = (from: string, to: string, interval = 30) => {
   const slots: string[] = [];
@@ -13,3 +13,9 @@ export const generateTimeSlots = (from: string, to: string, interval = 30) => {
 
   return slots;
 };
+
+export const getAvailabilityTimeInTimezone = (
+  time: string,
+  timeZone: string,
+  referenceDate = dayjs().format("YYYY-MM-DD"),
+) => dayjs.utc(`${referenceDate}T${time}`).tz(timeZone).format("HH:mm:ss");

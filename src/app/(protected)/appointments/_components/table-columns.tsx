@@ -1,21 +1,14 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
+
+import { dayjs } from "@/lib/dayjs"; // ✅ padrão global
 
 import AppointmentTableAction from "./table-action";
 import type {
   UpsertAppointmentFormDoctor,
   UpsertAppointmentFormPatient,
 } from "./upsert-appointment-form";
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
-// 🔥 mesmo timezone do sistema inteiro
-const TZ = "America/Sao_Paulo";
 
 export type Appointment = {
   id: number;
@@ -33,9 +26,12 @@ export type Appointment = {
   } | null;
 };
 
+type NewType = UpsertAppointmentFormDoctor;
+
 export const getColumns = (
   patients: UpsertAppointmentFormPatient[],
-  doctors: UpsertAppointmentFormDoctor[],
+  doctors: NewType[],
+  userTimezone: string, // ✅ NOVO
 ): ColumnDef<Appointment>[] => [
   {
     id: "patient",
@@ -56,7 +52,8 @@ export const getColumns = (
     cell: (params) => {
       const date = params.row.original.date;
 
-      return dayjs.utc(date).tz(TZ).format("DD/MM/YYYY HH:mm");
+      // ✅ CORRETO: usa timezone do usuário
+      return dayjs(date).tz(userTimezone).format("DD/MM/YYYY HH:mm");
     },
   },
   {

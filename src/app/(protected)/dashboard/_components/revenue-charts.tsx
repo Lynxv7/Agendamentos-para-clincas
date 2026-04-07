@@ -1,6 +1,5 @@
 "use client";
 
-import dayjs from "dayjs";
 import { DollarSign } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
@@ -18,6 +17,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { formatCurrencyInCents } from "@/helpers/currency";
+import { dayjs } from "@/lib/dayjs";
 
 const chartConfig = {
   appointments: {
@@ -41,7 +41,7 @@ interface RevenueChartProps {
 export function RevenueChart({ daylyAppointmentsData }: RevenueChartProps) {
   const chartDays = Array.from({ length: 21 }, (_, index) =>
     dayjs()
-      .subtract(20 - index, "days")
+      .subtract(10 - index, "days")
       .format("YYYY-MM-DD"),
   );
 
@@ -62,7 +62,7 @@ export function RevenueChart({ daylyAppointmentsData }: RevenueChartProps) {
       <CardHeader>
         <DollarSign className="text-green-500" />
         <CardTitle>Receita e Agendamentos</CardTitle>
-        <CardDescription>Últimos 21 dias de movimentação</CardDescription>
+        <CardDescription>Últimos 10 dias e próximos 10 dias</CardDescription>
       </CardHeader>
 
       <CardContent>

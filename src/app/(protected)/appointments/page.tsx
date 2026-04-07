@@ -1,8 +1,3 @@
-"use server";
-
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import { asc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -22,12 +17,6 @@ import { auth } from "@/lib/auth";
 
 import { AppointmentsTable } from "./_components/appoitments-table";
 import NewAppointmentDialog from "./_components/new-appointment-dialog";
-
-// 🔥 CONFIG TIMEZONE
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
-const TZ = "America/Sao_Paulo";
 
 const AppointmentsPage = async () => {
   const session = await auth.api.getSession({
@@ -71,12 +60,6 @@ const AppointmentsPage = async () => {
     }),
   ]);
 
-  // ✅ CORREÇÃO DE TIMEZONE AQUI
-  const formattedAppointments = appointments.map((appointment) => ({
-    ...appointment,
-    date: dayjs.utc(appointment.date).tz(TZ).toDate(),
-  }));
-
   return (
     <PageContainer>
       <PageHeader>
@@ -92,7 +75,7 @@ const AppointmentsPage = async () => {
 
       <PageContent>
         <AppointmentsTable
-          data={formattedAppointments}
+          data={appointments}
           patients={patients}
           doctors={doctors}
         />

@@ -1,9 +1,6 @@
 "use server";
 
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
@@ -11,20 +8,16 @@ import { upsertAppointmentSchema } from "@/actions/upsert-appointments/schema";
 import { db } from "@/db";
 import { appointmentsTable, doctorsTable, patientsTable } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { dayjs } from "@/lib/dayjs";
 import { actionClient } from "@/lib/next-safe-action";
 
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
-const TZ = "America/Sao_Paulo";
-
- const upsertAppointment = actionClient
+const upsertAppointment = actionClient
   .schema(upsertAppointmentSchema)
   .action(async ({ parsedInput }) => {
     const { id, ...rest } = parsedInput;
 
     const session = await auth.api.getSession({
-      headers: await headers(),
+      headers: headers(), // ✅ corrigido
     });
 
     type UserWithClinic = {
@@ -44,40 +37,38 @@ const TZ = "America/Sao_Paulo";
       throw new Error("Paciente ou médico inválido.");
     }
 
-    // 🔥 RECEBE UTC DO FRONT (correto)
-    const appointmentUTC = dayjs.utc(rest.date);
+    // ✅ JÁ VEM EM UTC DO FRONT
+    const appointmentUTC = dayjs(rest.date);
 
     if (!appointmentUTC.isValid()) {
       throw new Error("Data inválida.");
     }
 
-    // 🔥 CONVERTE PARA LOCAL (para validação)
-    const appointmentLocal = appointmentUTC.tz(TZ);
+    // 🔥 range do dia em UTC (para query eficiente)
+    const startOfDayUTC = appointmentUTC.startOf("day").toDate();
+    const endOfDayUTC = appointmentUTC.endOf("day").toDate();
 
-    const formattedDate = appointmentLocal.format("YYYY-MM-DD");
-    const formattedTime = appointmentLocal.format("HH:mm");
-
-    // 🔥 VALIDAR CONFLITO
+    // 🔥 busca apenas do mesmo dia
     const existingAppointments = await db.query.appointmentsTable.findMany({
-      where: eq(appointmentsTable.doctorId, doctorId),
+      where: and(
+        eq(appointmentsTable.doctorId, doctorId),
+        gte(appointmentsTable.date, startOfDayUTC),
+        lt(appointmentsTable.date, endOfDayUTC),
+      ),
     });
 
+    // 🔥 comparação por timestamp (muito mais seguro)
     const hasConflict = existingAppointments.some((appt) => {
       if (id && appt.id === id) return false;
 
-      const apptLocal = dayjs.utc(appt.date).tz(TZ);
-
-      return (
-        apptLocal.format("YYYY-MM-DD") === formattedDate &&
-        apptLocal.format("HH:mm") === formattedTime
-      );
+      return dayjs(appt.date).isSame(appointmentUTC);
     });
 
     if (hasConflict) {
       throw new Error("Horário já está ocupado.");
     }
 
-    // 🔍 VALIDAR PACIENTE
+    // 🔍 validar paciente
     const patient = await db.query.patientsTable.findFirst({
       where: eq(patientsTable.id, patientId),
     });
@@ -86,7 +77,7 @@ const TZ = "America/Sao_Paulo";
       throw new Error("Paciente inválido.");
     }
 
-    // 🔍 VALIDAR MÉDICO
+    // 🔍 validar médico
     const doctor = await db.query.doctorsTable.findFirst({
       where: eq(doctorsTable.id, doctorId),
     });
@@ -97,14 +88,25 @@ const TZ = "America/Sao_Paulo";
 
     const appointmentPriceInCents = Math.round(rest.appointmentPrice * 100);
 
-    // 💾 SALVAR EM UTC (correto)
+    // 🔥 PROTEÇÃO EXTRA (race condition)
+    const alreadyExists = await db.query.appointmentsTable.findFirst({
+      where: and(
+        eq(appointmentsTable.doctorId, doctorId),
+        eq(appointmentsTable.date, appointmentUTC.toDate()),
+      ),
+    });
+
+    if (alreadyExists && (!id || alreadyExists.id !== id)) {
+      throw new Error("Horário já foi reservado.");
+    }
+
     await db
       .insert(appointmentsTable)
       .values({
         ...(id ? { id } : {}),
         patientId,
         doctorId,
-        date: appointmentUTC.toDate(),
+        date: appointmentUTC.toDate(), // ✅ UTC
         appointmentPriceInCents,
         clinicId: user.clinic.id,
       })
@@ -122,5 +124,4 @@ const TZ = "America/Sao_Paulo";
     revalidatePath("/dashboard");
   });
 
-
-  export default upsertAppointment;
+export default upsertAppointment;

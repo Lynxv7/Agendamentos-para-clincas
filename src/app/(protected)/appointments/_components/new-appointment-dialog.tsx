@@ -1,14 +1,10 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import { CalendarIcon } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -33,7 +29,9 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -46,9 +44,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { dayjs } from "@/lib/dayjs";
 
-dayjs.extend(utc);
-dayjs.extend(timezone);
+// Computado uma única vez fora do componente — nunca muda durante a sessão
+const USER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 type FormValues = z.infer<typeof createAppointmentSchema>;
 
@@ -73,14 +72,17 @@ interface Props {
 type TimeSlot = {
   value: string;
   available: boolean;
+  hasPreviousBooking?: boolean;
   label?: string;
 };
 
 const NewAppointmentDialog = ({ patients, doctors }: Props) => {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState<string>();
   const [times, setTimes] = useState<TimeSlot[]>([]);
+  const [priceDisplay, setPriceDisplay] = useState("");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(createAppointmentSchema),
@@ -89,26 +91,41 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
       doctorId: "",
       appointmentPrice: 0,
       date: "",
+      timeZone: USER_TIMEZONE,
     },
   });
 
-  const createAction = useAction(createAppointment, {
-    onSuccess: () => {
-      toast.success("Agendamento criado");
-      setOpen(false);
-      form.reset();
-      setSelectedDate(undefined);
-      setSelectedTime(undefined);
-      setTimes([]);
+  const { execute: createExecute, isPending: isCreating } = useAction(
+    createAppointment,
+    {
+      onSuccess: () => {
+        toast.success("Agendamento criado com sucesso!");
+        setOpen(false);
+        form.reset();
+        setSelectedDate(undefined);
+        setSelectedTime(undefined);
+        setTimes([]);
+        router.refresh();
+      },
+      onError: ({ error }) =>
+        toast.error(error.serverError ?? "Erro ao criar agendamento"),
     },
-    onError: () => toast.error("Erro ao criar"),
-  });
+  );
 
-  const getTimesAction = useAction(getAvailableTimes);
+  const {
+    execute: fetchTimesExecute,
+    result: timesResult,
+    isPending: isFetchingTimes,
+  } = useAction(getAvailableTimes);
+
+  // Ref para sempre ter a versão mais recente de fetchTimesExecute
+  // sem adicioná-la como dependência do useEffect (evita loop infinito)
+  const fetchTimesRef = useRef(fetchTimesExecute);
+  fetchTimesRef.current = fetchTimesExecute;
 
   const doctorId = form.watch("doctorId");
 
-  // 🔄 reset ao trocar médico
+  // Reset ao trocar médico
   useEffect(() => {
     setSelectedDate(undefined);
     setSelectedTime(undefined);
@@ -121,17 +138,16 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
     [doctorId, doctors],
   );
 
-  // 📅 dias desabilitados
+  // Dias desabilitados no calendário
   const disabledDays = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = dayjs().startOf("day").toDate();
 
     if (!selectedDoctor) return [{ before: today }];
 
     return [
       { before: today },
       (date: Date) => {
-        const day = date.getDay();
+        const day = dayjs(date).day();
 
         return (
           day < selectedDoctor.availableFromWeekDay ||
@@ -141,42 +157,51 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
     ];
   }, [selectedDoctor]);
 
-  // 💰 preço automático
+  // Preenche preço automaticamente ao selecionar médico
   useEffect(() => {
     if (selectedDoctor) {
-      form.setValue(
-        "appointmentPrice",
-        selectedDoctor.appointmentPriceInCents / 100,
+      const price = selectedDoctor.appointmentPriceInCents / 100;
+
+      form.setValue("appointmentPrice", price);
+      setPriceDisplay(
+        new Intl.NumberFormat("pt-BR", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(price),
       );
+    } else {
+      setPriceDisplay("");
     }
   }, [selectedDoctor, form]);
 
-  // 🔄 reset horário ao trocar data
+  // Reset horário ao trocar data
   useEffect(() => {
     setSelectedTime(undefined);
   }, [selectedDate]);
 
-  // 🔥 buscar horários (COM TIMEZONE CORRETO)
+  // Buscar horários disponíveis — usa ref para evitar loop infinito
   useEffect(() => {
     if (!selectedDate || !doctorId) return;
 
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const formattedDate = dayjs(selectedDate)
+      .tz(USER_TIMEZONE)
+      .format("YYYY-MM-DD");
 
-    getTimesAction.execute({
+    fetchTimesRef.current({
       doctorId,
-      date: format(selectedDate, "yyyy-MM-dd"),
-      timeZone: tz,
+      date: formattedDate,
+      timeZone: USER_TIMEZONE,
     });
   }, [selectedDate, doctorId]);
 
-  // 📊 atualizar lista
+  // Atualizar lista de horários quando resultado chega
   useEffect(() => {
-    if (getTimesAction.result?.data) {
-      setTimes(getTimesAction.result.data);
-    } else if (!getTimesAction.isPending) {
+    if (timesResult?.data) {
+      setTimes(timesResult.data);
+    } else if (!isFetchingTimes) {
       setTimes([]);
     }
-  }, [getTimesAction.result, getTimesAction.isPending]);
+  }, [timesResult, isFetchingTimes]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -192,14 +217,21 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
 
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit((data) => {
-              if (!selectedTime) {
-                toast.error("Selecione um horário");
-                return;
-              }
-
-              createAction.execute(data);
-            })}
+            onSubmit={form.handleSubmit(
+              (data) => {
+                if (!selectedTime) {
+                  toast.error("Selecione um horário");
+                  return;
+                }
+                createExecute({ ...data, timeZone: USER_TIMEZONE });
+              },
+              (errors) => {
+                const firstError = Object.values(errors)[0];
+                const message =
+                  firstError?.message ?? "Preencha todos os campos";
+                toast.error(message);
+              },
+            )}
             className="space-y-4"
           >
             {/* Paciente */}
@@ -255,6 +287,46 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
               )}
             />
 
+            {/* Valor */}
+            <FormField
+              control={form.control}
+              name="appointmentPrice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Valor</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <span className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-sm">
+                        R$
+                      </span>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0,00"
+                        className="pl-9"
+                        value={priceDisplay}
+                        onChange={(e) => {
+                          // Mantém apenas dígitos e converte centavos -> reais
+                          const digits = e.target.value.replace(/\D/g, "");
+                          const cents = parseInt(digits || "0", 10);
+                          const reais = cents / 100;
+
+                          setPriceDisplay(
+                            new Intl.NumberFormat("pt-BR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            }).format(reais),
+                          );
+                          field.onChange(reais);
+                        }}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             {/* Data */}
             <FormItem>
               <FormLabel>Data</FormLabel>
@@ -264,7 +336,7 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
                   <Button variant="outline">
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {selectedDate
-                      ? format(selectedDate, "PPP", { locale: ptBR })
+                      ? dayjs(selectedDate).format("DD/MM/YYYY")
                       : "Selecione"}
                   </Button>
                 </PopoverTrigger>
@@ -275,7 +347,6 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
                     selected={selectedDate}
                     onSelect={setSelectedDate}
                     disabled={disabledDays}
-                    locale={ptBR}
                   />
                 </PopoverContent>
               </Popover>
@@ -291,10 +362,11 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
                   setSelectedTime(time);
 
                   if (selectedDate) {
-                    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
                     const dateTimeUTC = dayjs
-                      .tz(`${format(selectedDate, "yyyy-MM-dd")} ${time}`, tz)
+                      .tz(
+                        `${dayjs(selectedDate).format("YYYY-MM-DD")} ${time}`,
+                        USER_TIMEZONE,
+                      )
                       .utc()
                       .toISOString();
 
@@ -310,13 +382,16 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
                 </FormControl>
 
                 <SelectContent>
-                  {getTimesAction.isPending && (
+                  {isFetchingTimes && (
                     <div className="p-2 text-sm">Carregando...</div>
                   )}
 
-                  {!getTimesAction.isPending && times.length === 0 && (
-                    <div className="p-2 text-sm">Sem horários disponíveis</div>
-                  )}
+                  {!isFetchingTimes &&
+                    times.filter((t) => t.available).length === 0 && (
+                      <div className="p-2 text-sm">
+                        Sem horários disponíveis
+                      </div>
+                    )}
 
                   {times.map((t) => (
                     <SelectItem
@@ -324,7 +399,19 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
                       value={t.value}
                       disabled={!t.available}
                     >
-                      {t.label ?? t.value}
+                      <span>
+                        {t.label ?? t.value}
+                        {!t.available && (
+                          <span className="text-muted-foreground ml-2 text-xs">
+                            (indisponível)
+                          </span>
+                        )}
+                        {t.available && t.hasPreviousBooking && (
+                          <span className="ml-2 text-xs text-amber-600">
+                            ⚠️ consulta antes
+                          </span>
+                        )}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -332,8 +419,8 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
             </FormItem>
 
             <DialogFooter>
-              <Button type="submit">
-                {createAction.isPending ? "Salvando..." : "Criar"}
+              <Button type="submit" disabled={isCreating}>
+                {isCreating ? "Salvando..." : "Criar"}
               </Button>
             </DialogFooter>
           </form>

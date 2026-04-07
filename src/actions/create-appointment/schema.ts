@@ -23,5 +23,9 @@ export const createAppointmentSchema = z.object({
       message: "Data inválida.",
     }),
 
+  timeZone: z.string().trim().min(1, {
+    message: "Timezone é obrigatório.",
+  }),
+
   serviceType: z.string().optional(),
 });

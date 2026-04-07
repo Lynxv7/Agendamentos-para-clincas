@@ -1,5 +1,4 @@
-import dayjs from "dayjs";
-import { and, count, eq, gte, lte, sql,sum } from "drizzle-orm";
+import { and, count, eq, gte, lte, sql, sum } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -15,6 +14,7 @@ import {
 import { db } from "@/db";
 import { appointmentsTable, doctorsTable, patientsTable } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { dayjs } from "@/lib/dayjs";
 
 import { DatePicker } from "./_components/date-picker";
 import { RevenueChart } from "./_components/revenue-charts";
@@ -113,7 +113,8 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
   const totalPatients = Number(totalPatientsResult[0]?.total ?? 0);
   const totalDoctors = Number(totalDoctorsResult[0]?.total ?? 0);
 
-  // 📊 PERÍODO DO GRÁFICO
+  // PERÍODO DO GRÁFICO — deve ser idêntico à janela renderizada pelo componente RevenuChart
+  // O gráfico exibe dayjs().subtract(10, 'days') até dayjs().add(10, 'days') (21 dias)
   const chartStartDate = dayjs().subtract(10, "days").startOf("day").toDate();
   const chartEndDate = dayjs().add(10, "days").endOf("day").toDate();
 
@@ -159,7 +160,12 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
           />
 
           <div className="grid grid-cols-[2.25fr_1fr] gap-4">
-            <RevenueChart daylyAppointmentsData={daylyAppointments} />
+            <RevenueChart
+              daylyAppointmentsData={daylyAppointments.map((d) => ({
+                ...d,
+                revenue: Number(d.revenue ?? 0),
+              }))}
+            />
           </div>
         </PageContent>
       </PageContainer>

@@ -1,19 +1,30 @@
 "use server";
 
 import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
-import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
 import { db } from "@/db";
-import { appointmentsTable, doctorsTable, patientsTable } from "@/db/schema";
+import { appointmentsTable } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { actionClient } from "@/lib/next-safe-action";
 
+import { getAvailableTimes } from "../get-available-times";
 import { createAppointmentSchema } from "./schema";
 
 dayjs.extend(utc);
+dayjs.extend(timezone);
+
+// 🔥 mesmo timezone do sistema inteiro
+const TZ = "America/Sao_Paulo";
+
+type SessionUser = {
+  clinic?: {
+    id: number;
+  };
+};
 
 export const createAppointment = actionClient
   .schema(createAppointmentSchema)
@@ -22,68 +33,52 @@ export const createAppointment = actionClient
       headers: await headers(),
     });
 
-    type UserWithClinic = {
-      id: string;
-      clinic?: {
-        id: number;
-      };
-    };
-
-    const user = session?.user as UserWithClinic;
-
-    if (!user) {
+    if (!session?.user) {
       throw new Error("Unauthorized");
     }
+
+    const user = session.user as typeof session.user & SessionUser;
 
     if (!user.clinic?.id) {
       throw new Error("Clinic not found");
     }
 
-    // Validar IDs
-    const patientId = Number(parsedInput.patientId);
-    const doctorId = Number(parsedInput.doctorId);
+    // ✅ interpretar como UTC (vem do frontend)
+    const appointmentUTC = dayjs.utc(parsedInput.date);
 
-    if (!patientId || !doctorId) {
-      throw new Error("Paciente ou médico inválido.");
-    }
+    // ✅ converter para horário local (para validação)
+    const appointmentLocal = appointmentUTC.tz(TZ);
 
-    // Validar data com UTC
-    const appointmentDate = dayjs.utc(parsedInput.date);
+    const formattedDate = appointmentLocal.format("YYYY-MM-DD");
+    const formattedTime = appointmentLocal.format("HH:mm");
 
-    if (!appointmentDate.isValid()) {
-      throw new Error("Data inválida.");
-    }
-
-    // Verificar se paciente pertence à clínica
-    const patient = await db.query.patientsTable.findFirst({
-      where: eq(patientsTable.id, patientId),
+    // 🔍 valida disponibilidade
+    const availableTimes = await getAvailableTimes({
+      doctorId: String(parsedInput.doctorId),
+      date: formattedDate,
     });
 
-    if (!patient || patient.clinicId !== user.clinic.id) {
-      throw new Error("Paciente inválido.");
+    if (!availableTimes?.data) {
+      throw new Error("No available times");
     }
 
-    // Verificar se médico pertence à clínica
-    const doctor = await db.query.doctorsTable.findFirst({
-      where: eq(doctorsTable.id, doctorId),
-    });
-
-    if (!doctor || doctor.clinicId !== user.clinic.id) {
-      throw new Error("Médico inválido.");
-    }
-
-    const appointmentPriceInCents = Math.round(
-      parsedInput.appointmentPrice * 100,
+    const isTimeAvailable = availableTimes.data.some(
+      (time) => time.value === formattedTime && time.available,
     );
 
-    // Inserir
+    if (!isTimeAvailable) {
+      throw new Error("Time not available");
+    }
+
+    // 💾 salvar em UTC (PERFEITO)
     await db.insert(appointmentsTable).values({
-      patientId,
-      doctorId,
-      date: appointmentDate.toDate(),
-      appointmentPriceInCents,
+      patientId: Number(parsedInput.patientId),
+      doctorId: Number(parsedInput.doctorId),
       clinicId: user.clinic.id,
+      date: appointmentUTC.toDate(), // 🔥 UTC correto
+      appointmentPriceInCents: Math.round(parsedInput.appointmentPrice * 100),
     });
 
     revalidatePath("/appointments");
+    revalidatePath("/dashboard");
   });

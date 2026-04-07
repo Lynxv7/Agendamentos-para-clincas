@@ -1,105 +1,83 @@
 "use server";
 
 import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
-import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { headers } from "next/headers";
+import { z } from "zod";
 
 import { db } from "@/db";
-import { appointmentsTable, doctorsTable, patientsTable } from "@/db/schema";
+import { appointmentsTable, doctorsTable } from "@/db/schema";
+import { generateTimeSlots } from "@/helpers/times";
 import { auth } from "@/lib/auth";
 import { actionClient } from "@/lib/next-safe-action";
 
-import { upsertAppointmentSchema } from "./schema";
-
 dayjs.extend(utc);
+dayjs.extend(timezone);
 
-export const upsertAppointment = actionClient
-  .schema(upsertAppointmentSchema)
+export const getAvailableTimes = actionClient
+  .schema(
+    z.object({
+      doctorId: z.string(),
+      date: z.string(),
+      timeZone: z.string(),
+    }),
+  )
   .action(async ({ parsedInput }) => {
-    // Desestruturação para permitir criação e atualização
-    const { id, ...rest } = parsedInput;
+    const { doctorId, date, timeZone } = parsedInput;
 
-    // Autenticação do usuário via BetterAuth
     const session = await auth.api.getSession({
       headers: await headers(),
     });
 
-    type UserWithClinic = {
-      id: string;
-      clinic?: {
-        id: number;
-      };
-    };
+    if (!session?.user) throw new Error("Unauthorized");
 
-    const user = session?.user as UserWithClinic;
-
-    if (!user) {
-      throw new Error("Unauthorized");
-    }
-
-    if (!user.clinic?.id) {
-      throw new Error("Clinic not found");
-    }
-
-    // Converte IDs de paciente e médico em número
-    const patientId = Number(rest.patientId);
-    const doctorId = Number(rest.doctorId);
-
-    if (!patientId || !doctorId) {
-      throw new Error("Paciente ou médico inválido.");
-    }
-
-    // Converte data para UTC e valida
-    const appointmentDate = dayjs(rest.date).utc();
-
-    if (!appointmentDate.isValid()) {
-      throw new Error("Data inválida.");
-    }
-
-    // Verifica se o paciente existe e pertence à clínica do usuário
-    const patient = await db.query.patientsTable.findFirst({
-      where: eq(patientsTable.id, patientId),
-    });
-
-    if (!patient || patient.clinicId !== user.clinic.id) {
-      throw new Error("Paciente inválido.");
-    }
-
-    // Verifica se o médico existe e pertence à clínica do usuário
     const doctor = await db.query.doctorsTable.findFirst({
-      where: eq(doctorsTable.id, doctorId),
+      where: eq(doctorsTable.id, Number(doctorId)),
     });
 
-    if (!doctor || doctor.clinicId !== user.clinic.id) {
-      throw new Error("Médico inválido.");
-    }
+    if (!doctor) throw new Error("Médico não encontrado");
 
-    // Converte valor para centavos antes de salvar
-    const appointmentPriceInCents = Math.round(rest.appointmentPrice * 100);
+    // ✅ DATA LOCAL CORRETA
+    const selectedDate = dayjs.tz(`${date} 00:00`, timeZone);
 
-    // Inserção ou atualização do agendamento
-    await db
-      .insert(appointmentsTable)
-      .values({
-        ...(id ? { id } : {}),
-        patientId,
-        doctorId,
-        date: appointmentDate.toDate(),
-        appointmentPriceInCents,
-        clinicId: user.clinic.id,
-      })
-      .onConflictDoUpdate({
-        target: [appointmentsTable.id],
-        set: {
-          patientId,
-          doctorId,
-          date: appointmentDate.toDate(),
-          appointmentPriceInCents,
-        },
-      });
+    // ✅ RANGE EM UTC (para banco)
+    const startUTC = selectedDate.startOf("day").utc().toDate();
+    const endUTC = selectedDate.endOf("day").utc().toDate();
 
-    // Revalida a página para atualizar a lista de agendamentos
-    revalidatePath("/appointments");
+    const appointments = await db.query.appointmentsTable.findMany({
+      where: and(
+        eq(appointmentsTable.doctorId, Number(doctorId)),
+        gte(appointmentsTable.date, startUTC),
+        lte(appointmentsTable.date, endUTC),
+      ),
+    });
+
+    // ✅ horários ocupados (LOCAL)
+    const busyTimes = new Set(
+      appointments.map((a) => dayjs.utc(a.date).tz(timeZone).format("HH:mm")),
+    );
+
+    const slots = generateTimeSlots();
+
+    const now = dayjs().tz(timeZone);
+
+    return slots.map((time) => {
+      const slot = dayjs.tz(`${date} ${time}`, timeZone);
+
+      const from = dayjs.tz(`${date} ${doctor.availableFromTime}`, timeZone);
+      const to = dayjs.tz(`${date} ${doctor.availableToTime}`, timeZone);
+
+      const isWithin = !slot.isBefore(from) && !slot.isAfter(to);
+
+      const isFuture = selectedDate.isSame(now, "day")
+        ? slot.isAfter(now)
+        : true;
+
+      return {
+        value: time,
+        available: isWithin && isFuture && !busyTimes.has(time),
+      };
+    });
   });

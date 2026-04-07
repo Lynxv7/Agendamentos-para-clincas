@@ -4,7 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable } from "@/components/ui/data-table";
 
-import { getColumns } from "./table-columns";
+import { type Appointment,getColumns } from "./table-columns";
 
 interface Patient {
   id: number;
@@ -33,10 +33,6 @@ interface Doctor {
   availableToTime: string;
   specialty: string;
   appointmentPriceInCents: number;
-}
-
-interface Appointment {
-  [key: string]: unknown;
 }
 
 interface Props {

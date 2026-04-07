@@ -1,12 +1,15 @@
-export const genrateTimesSlots = () => {
-  const times: string[] = [];
+import dayjs from "dayjs";
 
-  for (let hour = 0; hour < 24; hour++) {
-    for (const minute of [0, 30]) {
-      times.push(
-        `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`,
-      );
-    }
+export const generateTimeSlots = (from: string, to: string, interval = 30) => {
+  const slots: string[] = [];
+
+  let current = dayjs(`2000-01-01 ${from}`);
+  const end = dayjs(`2000-01-01 ${to}`);
+
+  while (current.isBefore(end)) {
+    slots.push(current.format("HH:mm"));
+    current = current.add(interval, "minute");
   }
-  return times;
+
+  return slots;
 };

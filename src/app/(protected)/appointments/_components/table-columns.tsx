@@ -1,13 +1,21 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { format } from "date-fns";
+import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 
 import AppointmentTableAction from "./table-action";
 import type {
   UpsertAppointmentFormDoctor,
   UpsertAppointmentFormPatient,
 } from "./upsert-appointment-form";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+// 🔥 mesmo timezone do sistema inteiro
+const TZ = "America/Sao_Paulo";
 
 export type Appointment = {
   id: number;
@@ -21,6 +29,7 @@ export type Appointment = {
   } | null;
   doctor?: {
     name: string;
+    specialty?: string | null;
   } | null;
 };
 
@@ -44,13 +53,16 @@ export const getColumns = (
     id: "date",
     header: "Data",
     accessorFn: (row) => row.date,
-    cell: (params) =>
-      format(new Date(params.row.original.date), "dd/MM/yyyy HH:mm"),
+    cell: (params) => {
+      const date = params.row.original.date;
+
+      return dayjs.utc(date).tz(TZ).format("DD/MM/YYYY HH:mm");
+    },
   },
   {
-    id: "doctor",
+    id: "specialty",
     header: "Especialidade",
-    accessorKey: "doctor.specialty",
+    accessorFn: (row) => row.doctor?.specialty ?? "-",
     cell: (params) => params.row.original.doctor?.specialty ?? "-",
   },
   {

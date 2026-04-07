@@ -1,3 +1,8 @@
+"use server";
+
+import dayjs from "dayjs";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 import { asc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -12,22 +17,23 @@ import {
   PageTitle,
 } from "@/components/ui/page-container";
 import { db } from "@/db";
-import {
-  appointmentsTable,
-  doctorsTable,
-  patientsTable,
-} from "@/db/schema";
+import { appointmentsTable, doctorsTable, patientsTable } from "@/db/schema";
 import { auth } from "@/lib/auth";
 
 import { AppointmentsTable } from "./_components/appoitments-table";
 import NewAppointmentDialog from "./_components/new-appointment-dialog";
+
+// 🔥 CONFIG TIMEZONE
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const TZ = "America/Sao_Paulo";
 
 const AppointmentsPage = async () => {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
-  
   type UserWithClinic = {
     id: string;
     clinic?: {
@@ -47,7 +53,7 @@ const AppointmentsPage = async () => {
 
   const clinicId = user.clinic.id;
 
-  // 🚀 Paralelismo mantido (ótimo)
+  // 🚀 paralelismo
   const [patients, doctors, appointments] = await Promise.all([
     db.query.patientsTable.findMany({
       where: eq(patientsTable.clinicId, clinicId),
@@ -65,14 +71,18 @@ const AppointmentsPage = async () => {
     }),
   ]);
 
+  // ✅ CORREÇÃO DE TIMEZONE AQUI
+  const formattedAppointments = appointments.map((appointment) => ({
+    ...appointment,
+    date: dayjs.utc(appointment.date).tz(TZ).toDate(),
+  }));
+
   return (
     <PageContainer>
       <PageHeader>
         <PageHeaderContent>
           <PageTitle>Agendamentos</PageTitle>
-          <PageDescription>
-            Veja os agendamentos e crie novos.
-          </PageDescription>
+          <PageDescription>Veja os agendamentos e crie novos.</PageDescription>
         </PageHeaderContent>
 
         <PageActions>
@@ -82,10 +92,9 @@ const AppointmentsPage = async () => {
 
       <PageContent>
         <AppointmentsTable
-          data={appointments}
+          data={formattedAppointments}
           patients={patients}
           doctors={doctors}
-          
         />
       </PageContent>
     </PageContainer>

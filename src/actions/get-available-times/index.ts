@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { db } from "@/db";
 import { appointmentsTable, doctorsTable } from "@/db/schema";
+import { generateTimeSlots } from "@/helpers/times";
 import { auth } from "@/lib/auth";
 import { actionClient } from "@/lib/next-safe-action";
 
@@ -19,101 +20,60 @@ export const getAvailableTimes = actionClient
   .schema(
     z.object({
       doctorId: z.string(),
-      date: z.string(), // YYYY-MM-DD
+      date: z.string(),
       timeZone: z.string(),
     }),
   )
   .action(async ({ parsedInput }) => {
     const { doctorId, date, timeZone } = parsedInput;
-    const TZ = timeZone;
 
-    // 🔐 sessão
     const session = await auth.api.getSession({
       headers: await headers(),
     });
 
-    type UserWithClinic = {
-      id: string;
-      clinic?: { id: number };
-    };
+    if (!session?.user) throw new Error("Unauthorized");
 
-    const user = session?.user as UserWithClinic;
-    if (!user) throw new Error("Unauthorized");
-    if (!user.clinic?.id) throw new Error("Clinic not found");
-
-    const doctorIdNumber = Number(doctorId);
-    if (Number.isNaN(doctorIdNumber)) {
-      throw new Error("Médico inválido");
-    }
-
-    // 👨‍⚕️ buscar médico
     const doctor = await db.query.doctorsTable.findFirst({
-      where: eq(doctorsTable.id, doctorIdNumber),
+      where: eq(doctorsTable.id, Number(doctorId)),
     });
+
     if (!doctor) throw new Error("Médico não encontrado");
 
-    // 📅 DATA LOCAL
-    const selectedDateLocal = dayjs.tz(date + " 00:00", TZ).startOf("day");
-    const nowLocal = dayjs().tz(TZ);
+    // 🔥 CORREÇÃO PRINCIPAL
+    const selectedDate = dayjs.tz(`${date} 00:00`, timeZone);
 
-    // ❌ bloquear dias passados
-    if (selectedDateLocal.isBefore(nowLocal, "day")) {
-      return [];
-    }
-
-    // 📅 validar dia da semana
-    const selectedDay = selectedDateLocal.day();
-    const isAvailableDay =
-      selectedDay >= doctor.availableFromWeekDay &&
-      selectedDay <= doctor.availableToWeekDay;
-    if (!isAvailableDay) return [];
-
-    // ⏰ horário do médico (LOCAL)
-    const fromLocal = dayjs.tz(`${date} ${doctor.availableFromTime}`, TZ);
-    const toLocal = dayjs.tz(`${date} ${doctor.availableToTime}`, TZ);
-
-    // 📊 gerar slots de 30 em 30 minutos
-    const timeSlots: string[] = [];
-    let cursor = fromLocal;
-    while (cursor.isBefore(toLocal) || cursor.isSame(toLocal)) {
-      timeSlots.push(cursor.format("HH:mm"));
-      cursor = cursor.add(30, "minute");
-    }
-
-    // ⛔ buscar agendamentos existentes (UTC → LOCAL)
-    const startOfDayUTC = selectedDateLocal.startOf("day").utc().toDate();
-    const endOfDayUTC = selectedDateLocal.endOf("day").utc().toDate();
+    const startUTC = selectedDate.startOf("day").utc().toDate();
+    const endUTC = selectedDate.endOf("day").utc().toDate();
 
     const appointments = await db.query.appointmentsTable.findMany({
       where: and(
-        eq(appointmentsTable.doctorId, doctorIdNumber),
-        gte(appointmentsTable.date, startOfDayUTC),
-        lte(appointmentsTable.date, endOfDayUTC),
+        eq(appointmentsTable.doctorId, Number(doctorId)),
+        gte(appointmentsTable.date, startUTC),
+        lte(appointmentsTable.date, endUTC),
       ),
     });
 
+    // 🔥 ocupado em LOCAL
     const busyTimes = new Set(
-      appointments.map((appointment) =>
-        dayjs.utc(appointment.date).tz(TZ).format("HH:mm"),
-      ),
+      appointments.map((a) => dayjs.utc(a.date).tz(timeZone).format("HH:mm")),
     );
 
-    // 🔍 filtrar horários válidos
-    const validSlots = timeSlots.filter((time) => {
-      const slotTime = dayjs.tz(`${date} ${time}`, TZ);
+    const slots = generateTimeSlots(
+      doctor.availableFromTime,
+      doctor.availableToTime,
+    );
 
-      // ⏱️ horário futuro
-      const isFutureTime = selectedDateLocal.isSame(nowLocal, "day")
-        ? slotTime.isAfter(nowLocal)
-        : true;
+    const now = dayjs().tz(timeZone);
 
-      // ✅ disponível e futuro
-      return isFutureTime && !busyTimes.has(time);
+    return slots.map((time) => {
+      const slotLocal = dayjs.tz(`${date} ${time}`, timeZone);
+
+      const isFuture =
+        !selectedDate.isSame(now, "day") || slotLocal.isAfter(now);
+
+      return {
+        value: time,
+        available: !busyTimes.has(time) && isFuture,
+      };
     });
-
-    // ✅ retorno final
-    return validSlots.map((time) => ({
-      value: time,
-      available: !busyTimes.has(time),
-    }));
   });

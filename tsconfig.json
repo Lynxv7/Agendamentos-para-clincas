@@ -14,7 +14,7 @@
     "jsx": "preserve",
     "incremental": true,
 
-    "baseUrl": ".", // 🔥 FALTAVA ISSO
+    "baseUrl": ".", 
 
     "paths": {
       "@/*": ["./src/*"]

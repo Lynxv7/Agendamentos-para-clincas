@@ -1,8 +1,7 @@
 "use client";
 
-import { EditIcon, MoreVerticalIcon, Trash2Icon } from "lucide-react";
+import { MoreVerticalIcon, TrashIcon } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
-import React, { useState } from "react";
 import { toast } from "sonner";
 
 import { deleteAppointment } from "@/actions/delete-appointment";
@@ -15,9 +14,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,30 +25,32 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { appointmentsTable } from "@/db/schema";
 
-import type { Appointment } from "./table-columns";
-import UpsertAppointmentForm, {
-  UpsertAppointmentFormDoctor,
-  UpsertAppointmentFormPatient,
-} from "./upsert-appointment-form";
+type AppointmentWithRelations = typeof appointmentsTable.$inferSelect & {
+  patient: {
+    id: number; // ✅ corrigido
+    name: string;
+    email: string;
+    phoneNumber: string;
+    sex: "male" | "female";
+  };
+  doctor: {
+    id: number; // ✅ corrigido
+    name: string;
+    specialty: string;
+  };
+};
 
-interface AppointmentTableActionProps {
-  appointment: Appointment;
-  patients: UpsertAppointmentFormPatient[];
-  doctors: UpsertAppointmentFormDoctor[];
+interface AppointmentsTableActionsProps {
+  appointment: AppointmentWithRelations;
 }
 
-const AppointmentTableAction = ({
+const AppointmentsTableActions = ({
   appointment,
-  patients,
-  doctors,
-}: AppointmentTableActionProps) => {
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
+}: AppointmentsTableActionsProps) => {
   const deleteAppointmentAction = useAction(deleteAppointment, {
     onSuccess: () => {
-      setDeleteDialogOpen(false);
       toast.success("Agendamento deletado com sucesso.");
     },
     onError: () => {
@@ -61,74 +62,52 @@ const AppointmentTableAction = ({
     deleteAppointmentAction.execute({ id: appointment.id });
   };
 
-  const appointmentFormValues = {
-    id: appointment.id,
-    patientId: appointment.patientId.toString(),
-    doctorId: appointment.doctorId.toString(),
-    appointmentPrice: appointment.appointmentPriceInCents / 100,
-    date:
-      appointment.date instanceof Date
-        ? appointment.date.toISOString()
-        : appointment.date,
-    serviceType: appointment.serviceType ?? "",
-  };
-
   return (
-    <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
-            <MoreVerticalIcon size={18} />
-          </Button>
-        </DropdownMenuTrigger>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <MoreVerticalIcon className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>{appointment.patient?.name ?? "Agendamento"}</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
-            <EditIcon className="mr-2 h-4 w-4" />
-            Editar
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="text-red-500"
-            onClick={() => setDeleteDialogOpen(true)}
-          >
-            <Trash2Icon className="mr-2 h-4 w-4" />
-            Excluir
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <DropdownMenuContent>
+        <DropdownMenuLabel>{appointment.patient.name}</DropdownMenuLabel>
 
-      <AlertDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Tem certeza que deseja deletar este agendamento?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Essa ação não pode ser revertida. O agendamento será removido do banco de dados.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteAppointmentClick}>
-              Deletar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <DropdownMenuSeparator />
 
-      <UpsertAppointmentForm
-        appointment={appointmentFormValues}
-        patients={patients}
-        doctors={doctors}
-        onSuccess={() => setEditDialogOpen(false)}
-      />
-    </Dialog>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <DropdownMenuItem>
+              <TrashIcon className="mr-2 h-4 w-4" />
+              Excluir
+            </DropdownMenuItem>
+          </AlertDialogTrigger>
+
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Tem certeza que deseja deletar esse agendamento?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Essa ação não pode ser revertida.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+
+              <AlertDialogAction
+                onClick={handleDeleteAppointmentClick}
+                disabled={deleteAppointmentAction.isPending}
+              >
+                {deleteAppointmentAction.isPending ? "Deletando..." : "Deletar"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 
-export default AppointmentTableAction;
+export default AppointmentsTableActions;

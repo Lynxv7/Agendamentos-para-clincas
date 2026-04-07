@@ -70,13 +70,17 @@ interface Props {
   doctors: Doctor[];
 }
 
+type TimeSlot = {
+  value: string;
+  available: boolean;
+  label?: string;
+};
+
 const NewAppointmentDialog = ({ patients, doctors }: Props) => {
   const [open, setOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState<string>();
-  const [times, setTimes] = useState<{ value: string; available: boolean }[]>(
-    [],
-  );
+  const [times, setTimes] = useState<TimeSlot[]>([]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(createAppointmentSchema),
@@ -104,20 +108,20 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
 
   const doctorId = form.watch("doctorId");
 
-  // reset ao trocar médico
+  // 🔄 reset ao trocar médico
   useEffect(() => {
     setSelectedDate(undefined);
     setSelectedTime(undefined);
     setTimes([]);
     form.setValue("date", "");
-  }, [doctorId]);
+  }, [doctorId, form]);
 
   const selectedDoctor = useMemo(
     () => doctors.find((d) => d.id.toString() === doctorId),
     [doctorId, doctors],
   );
 
-  // bloquear dias inválidos
+  // 📅 dias desabilitados
   const disabledDays = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -128,6 +132,7 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
       { before: today },
       (date: Date) => {
         const day = date.getDay();
+
         return (
           day < selectedDoctor.availableFromWeekDay ||
           day > selectedDoctor.availableToWeekDay
@@ -136,7 +141,7 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
     ];
   }, [selectedDoctor]);
 
-  // preço automático
+  // 💰 preço automático
   useEffect(() => {
     if (selectedDoctor) {
       form.setValue(
@@ -144,25 +149,27 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
         selectedDoctor.appointmentPriceInCents / 100,
       );
     }
-  }, [selectedDoctor]);
+  }, [selectedDoctor, form]);
 
-  // 🔥 CORREÇÃO: NÃO salvar data aqui
+  // 🔄 reset horário ao trocar data
   useEffect(() => {
     setSelectedTime(undefined);
   }, [selectedDate]);
 
-  // buscar horários
+  // 🔥 buscar horários (COM TIMEZONE CORRETO)
   useEffect(() => {
     if (!selectedDate || !doctorId) return;
+
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     getTimesAction.execute({
       doctorId,
       date: format(selectedDate, "yyyy-MM-dd"),
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timeZone: tz,
     });
   }, [selectedDate, doctorId]);
 
-  // salvar horários
+  // 📊 atualizar lista
   useEffect(() => {
     if (getTimesAction.result?.data) {
       setTimes(getTimesAction.result.data);
@@ -190,11 +197,12 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
                 toast.error("Selecione um horário");
                 return;
               }
+
               createAction.execute(data);
             })}
             className="space-y-4"
           >
-            {/* PACIENTE */}
+            {/* Paciente */}
             <FormField
               control={form.control}
               name="patientId"
@@ -203,10 +211,11 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
                   <FormLabel>Paciente</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                     </FormControl>
+
                     <SelectContent>
                       {patients.map((p) => (
                         <SelectItem key={p.id} value={p.id.toString()}>
@@ -219,19 +228,21 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
               )}
             />
 
-            {/* MÉDICO */}
+            {/* Médico */}
             <FormField
               control={form.control}
               name="doctorId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Médico</FormLabel>
+
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                     </FormControl>
+
                     <SelectContent>
                       {doctors.map((d) => (
                         <SelectItem key={d.id} value={d.id.toString()}>
@@ -244,9 +255,10 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
               )}
             />
 
-            {/* DATA */}
+            {/* Data */}
             <FormItem>
               <FormLabel>Data</FormLabel>
+
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline">
@@ -256,6 +268,7 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
                       : "Selecione"}
                   </Button>
                 </PopoverTrigger>
+
                 <PopoverContent>
                   <Calendar
                     mode="single"
@@ -268,7 +281,7 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
               </Popover>
             </FormItem>
 
-            {/* HORÁRIO */}
+            {/* Horário */}
             <FormItem>
               <FormLabel>Horário</FormLabel>
 
@@ -291,7 +304,7 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
                 disabled={!selectedDate}
               >
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                 </FormControl>
@@ -311,7 +324,7 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
                       value={t.value}
                       disabled={!t.available}
                     >
-                      {t.value} {!t.available && "(ocupado)"}
+                      {t.label ?? t.value}
                     </SelectItem>
                   ))}
                 </SelectContent>

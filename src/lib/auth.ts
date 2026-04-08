@@ -3,19 +3,19 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { customSession } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 
-// 🔹 internos
+// internos
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { usersToClinicsTable } from "@/db/schema";
 
 export const auth = betterAuth({
   //
-  // ✅ BASE URL
+  // BASE URL
   //
   baseURL: "http://localhost:3000",
 
   //
-  // 🗄️ DATABASE
+  // DATABASE
   //
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -23,7 +23,7 @@ export const auth = betterAuth({
   }),
 
   //
-  // 🔐 SOCIAL LOGIN
+  // SOCIAL LOGIN
   //
   socialProviders: {
     google: {
@@ -33,7 +33,7 @@ export const auth = betterAuth({
   },
 
   //
-  // 🔌 PLUGINS
+  // PLUGINS
   //
   plugins: [
     customSession(async ({ user, session }) => {
@@ -52,7 +52,7 @@ export const auth = betterAuth({
             ...user,
 
             //
-            // 🏥 FIX AQUI
+            // FIX AQUI
             //
             clinic: clinic
               ? {
@@ -75,7 +75,7 @@ export const auth = betterAuth({
   ],
 
   //
-  // 📦 MODELS
+  // MODELS
   //
   user: {
     modelName: "usersTable",
@@ -91,7 +91,7 @@ export const auth = betterAuth({
   },
 
   //
-  // 🔑 EMAIL + PASSWORD
+  // EMAIL + PASSWORD
   //
   emailAndPassword: {
     enabled: true,

@@ -1,6 +1,6 @@
 "use client";
 
-// 🔹 libs externas
+// libs externas
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-// 🔹 internos
+// internos
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 
 //
-// 🔒 SCHEMA
+// SCHEMA
 //
 const registerSchema = z.object({
   name: z.string().trim().min(1, "Nome é obrigatório"),
@@ -48,7 +48,7 @@ const registerSchema = z.object({
 type SignUpFormValues = z.infer<typeof registerSchema>;
 
 //
-// 🚀 COMPONENT
+// COMPONENT
 //
 const SignUpForm = () => {
   const router = useRouter();
@@ -63,7 +63,7 @@ const SignUpForm = () => {
   });
 
   //
-  // 🔐 REGISTER
+  // REGISTER
   //
   const handleSubmit = async (values: SignUpFormValues) => {
     await authClient.signUp.email(

@@ -80,7 +80,7 @@ export const verificationsTable = pgTable("verifications", {
 // CLINICS
 //
 export const clinicsTable = pgTable("clinics", {
-  id: serial("id").primaryKey(), // ✅ AUTO INCREMENT
+  id: serial("id").primaryKey(), // AUTO INCREMENT
   name: text("name").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
@@ -92,10 +92,10 @@ export const clinicsTable = pgTable("clinics", {
 // USERS ↔ CLINICS
 //
 export const usersToClinicsTable = pgTable("users_to_clinics", {
-  userId: text("user_id") // ⚠️ mantém text
+  userId: text("user_id") // mantém text
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
-  clinicId: integer("clinic_id") // ✅ agora integer
+  clinicId: integer("clinic_id") // agora integer
     .notNull()
     .references(() => clinicsTable.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),

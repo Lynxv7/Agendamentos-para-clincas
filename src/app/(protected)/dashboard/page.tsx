@@ -1,4 +1,3 @@
-import { and, count, eq, gte, lte, sql, sum } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -11,14 +10,16 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "@/components/ui/page-container";
-import { db } from "@/db";
-import { appointmentsTable, doctorsTable, patientsTable } from "@/db/schema";
+import { getDashboard } from "@/data/get-dashboard";
 import { auth } from "@/lib/auth";
 import { dayjs } from "@/lib/dayjs";
 
 import { DatePicker } from "./_components/date-picker";
+import { TopDoctors } from "./_components/doctors-list";
 import { RevenueChart } from "./_components/revenue-charts";
+import { TopSpecialties } from "./_components/specialties-list";
 import DashboardCards from "./_components/stats-cards";
+import { TodayAppointments } from "./_components/today-appointments";
 
 interface DashboardPageProps {
   searchParams?: {
@@ -26,18 +27,6 @@ interface DashboardPageProps {
     to?: string;
   };
 }
-
-type Clinic = {
-  id: number;
-  name: string;
-};
-
-type User = {
-  id: string;
-  name: string;
-  email: string;
-  clinic?: Clinic;
-};
 
 const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
   const session = await auth.api.getSession({
@@ -48,9 +37,9 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     redirect("/authentication");
   }
 
-  const user: User = session.user;
+  const clinicId = (session.user as { clinic?: { id: number } }).clinic?.id;
 
-  if (!user.clinic) {
+  if (!clinicId) {
     redirect("/clinic-form");
   }
 
@@ -62,78 +51,20 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     );
   }
 
-  const fromDate = new Date(searchParams.from);
-  const toDate = new Date(searchParams.to);
-  const clinicId = user.clinic.id;
-
-  // QUERIES
-  const [
-    totalRevenueResult,
-    totalAppointmentsResult,
-    totalPatientsResult,
-    totalDoctorsResult,
-  ] = await Promise.all([
-    db
-      .select({
-        total: sum(appointmentsTable.appointmentPriceInCents),
-      })
-      .from(appointmentsTable)
-      .where(
-        and(
-          eq(appointmentsTable.clinicId, clinicId),
-          gte(appointmentsTable.date, fromDate),
-          lte(appointmentsTable.date, toDate),
-        ),
-      ),
-
-    db
-      .select({ total: count() })
-      .from(appointmentsTable)
-      .where(
-        and(
-          eq(appointmentsTable.clinicId, clinicId),
-          gte(appointmentsTable.date, fromDate),
-          lte(appointmentsTable.date, toDate),
-        ),
-      ),
-
-    db
-      .select({ total: count() })
-      .from(patientsTable)
-      .where(eq(patientsTable.clinicId, clinicId)),
-
-    db
-      .select({ total: count() })
-      .from(doctorsTable)
-      .where(eq(doctorsTable.clinicId, clinicId)),
-  ]);
-
-  const totalRevenue = Number(totalRevenueResult[0]?.total ?? 0);
-  const totalAppointments = Number(totalAppointmentsResult[0]?.total ?? 0);
-  const totalPatients = Number(totalPatientsResult[0]?.total ?? 0);
-  const totalDoctors = Number(totalDoctorsResult[0]?.total ?? 0);
-
-  // PERÍODO DO GRÁFICO — deve ser idêntico à janela renderizada pelo componente RevenuChart
-  // O gráfico exibe dayjs().subtract(10, 'days') até dayjs().add(10, 'days') (21 dias)
-  const chartStartDate = dayjs().subtract(10, "days").startOf("day").toDate();
-  const chartEndDate = dayjs().add(10, "days").endOf("day").toDate();
-
-  const daylyAppointments = await db
-    .select({
-      date: sql<string>`DATE(${appointmentsTable.date})`,
-      appointments: count(appointmentsTable.id),
-      revenue: sum(appointmentsTable.appointmentPriceInCents),
-    })
-    .from(appointmentsTable)
-    .where(
-      and(
-        eq(appointmentsTable.clinicId, clinicId),
-        gte(appointmentsTable.date, chartStartDate),
-        lte(appointmentsTable.date, chartEndDate),
-      ),
-    )
-    .groupBy(sql`DATE(${appointmentsTable.date})`)
-    .orderBy(sql`DATE(${appointmentsTable.date})`);
+  const {
+    totalRevenue,
+    totalAppointments,
+    totalPatients,
+    totalDoctors,
+    topDoctors,
+    topSpecialties,
+    dailyAppointments,
+    todayAppointments,
+  } = await getDashboard({
+    from: searchParams.from,
+    to: searchParams.to,
+    clinicId,
+  });
 
   return (
     <div className="bg-gray-100">
@@ -161,12 +92,18 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
 
           <div className="grid grid-cols-[2.25fr_1fr] gap-4">
             <RevenueChart
-              daylyAppointmentsData={daylyAppointments.map((d) => ({
+              daylyAppointmentsData={dailyAppointments.map((d) => ({
                 ...d,
                 revenue: Number(d.revenue ?? 0),
               }))}
             />
+            <div className="flex flex-col gap-4">
+              <TopDoctors doctors={topDoctors} />
+              <TopSpecialties specialty={topSpecialties} />
+            </div>
           </div>
+
+          <TodayAppointments appointments={todayAppointments} />
         </PageContent>
       </PageContainer>
     </div>

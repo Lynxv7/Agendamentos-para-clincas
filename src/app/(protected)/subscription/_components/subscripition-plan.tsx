@@ -1,5 +1,10 @@
+"use client";
 import { CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useAction } from "next-safe-action/hooks";
+import { toast } from "sonner";
 
+import { createStripeCheckout } from "@/actions/create-stripe-checkout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,18 +16,47 @@ import {
 
 interface PlanCardProps {
   active?: boolean;
+  className?: string;
+  userEmail?: string;
 }
 
-const features = [
-  "Cadastro de até 3 médicos",
-  "Agendamentos ilimitados",
-  "Métricas básicas",
-  "Cadastro de pacientes",
-  "Confirmação manual",
-  "Suporte via e-mail",
-];
+export function PlanCard({ active = false, userEmail }: PlanCardProps) {
+  const router = useRouter();
+  const createStripeCheckoutAction = useAction(createStripeCheckout, {
+    onSuccess: ({
+      data,
+    }: {
+      data?: { sessionId: string; url: string | null };
+    }) => {
+      if (!data?.url) {
+        toast.error("Não foi possível iniciar o pagamento. Tente novamente.");
+        return;
+      }
+      window.location.href = data.url;
+    },
+    onError: () => {
+      toast.error("Erro ao criar sessão de pagamento. Tente novamente.");
+    },
+  });
+  const features = [
+    "Cadastro de até 3 médicos",
+    "Agendamentos ilimitados",
+    "Métricas básicas",
+    "Cadastro de pacientes",
+    "Confirmação manual",
+    "Suporte via e-mail",
+  ];
 
-export function PlanCard({ active = false }: PlanCardProps) {
+  const handleSubscribeClick = () => {
+    createStripeCheckoutAction.execute();
+  };
+
+  const handleManagePlanClick = () => {
+    router.push(
+      `${process.env.NEXT_PUBLIC_STRIPE_CUSTOMER_PORTAL_URL}?prefilled_email=${userEmail}`,
+    );
+  };
+
   return (
     <Card className="w-full max-w-sm rounded-2xl shadow-lg">
       <CardHeader className="space-y-2 pb-4">
@@ -58,6 +92,8 @@ export function PlanCard({ active = false }: PlanCardProps) {
         <Button
           variant="outline"
           className="border-foreground/20 hover:bg-muted w-full rounded-full py-6 text-base font-medium"
+          onClick={active ? handleManagePlanClick: handleSubscribeClick}
+          disabled={createStripeCheckoutAction.isExecuting}
         >
           {active ? "Gerenciar assinatura" : "Fazer assinatura"}
         </Button>

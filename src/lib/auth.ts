@@ -50,10 +50,6 @@ export const auth = betterAuth({
         return {
           user: {
             ...user,
-
-            //
-            // FIX AQUI
-            //
             clinic: clinic
               ? {
                   id: clinic.clinicId, // number
@@ -79,6 +75,23 @@ export const auth = betterAuth({
   //
   user: {
     modelName: "usersTable",
+    additionalFields: {
+      stripeCustomerId: {
+        type: "string",
+        fieldName: "stripeCustomerId",
+        required: false,
+      },
+      stripeSubscriptionId: {
+        type: "string",
+        fieldName: "stripeSubscriptionId",
+        required: false,
+      },
+      plan: {
+        type: "string",
+        fieldName: "plan",
+        required: false,
+      },
+    },
   },
   session: {
     modelName: "sessionsTable",

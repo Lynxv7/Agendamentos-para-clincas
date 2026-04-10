@@ -15,6 +15,20 @@
       "when": 1774810829789,
       "tag": "0001_dizzy_calypso",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1744214400000,
+      "tag": "0002_subscription_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775755312427,
+      "tag": "0003_pretty_unicorn",
+      "breakpoints": true
     }
   ]
 }

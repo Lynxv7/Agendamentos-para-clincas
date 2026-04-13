@@ -79,11 +79,7 @@ const AppointmentsPage = async () => {
       </PageHeader>
 
       <PageContent>
-        <AppointmentsTable
-          data={appointments}
-          patients={patients}
-          doctors={doctors}
-        />
+        <AppointmentsTable data={appointments} />
       </PageContent>
     </PageContainer>
   );

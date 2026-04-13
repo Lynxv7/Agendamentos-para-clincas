@@ -6,10 +6,12 @@ import { usersTable } from "@/db/schema";
 
 export const POST = async (request: Request) => {
   if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error("[WEBHOOK] Missing env vars");
     throw new Error("Stripe secret key or webhook secret is not found");
   }
   const signature = request.headers.get("stripe-signature");
   if (!signature) {
+    console.error("[WEBHOOK] Missing stripe-signature header");
     return new Response("Missing Stripe signature", { status: 400 });
   }
   const text = await request.text();
@@ -24,9 +26,12 @@ export const POST = async (request: Request) => {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET,
     );
-  } catch {
+  } catch (err) {
+    console.error("[WEBHOOK] Invalid signature:", err);
     return new Response("Invalid webhook signature", { status: 400 });
   }
+
+  console.log("[WEBHOOK] Event received:", event.type);
 
   switch (event.type) {
     case "checkout.session.completed": {
@@ -53,7 +58,10 @@ export const POST = async (request: Request) => {
 
     case "customer.subscription.updated": {
       const subscription = event.data.object as Stripe.Subscription;
-      if (subscription.status === "canceled" || subscription.cancel_at_period_end) {
+      if (
+        subscription.status === "canceled" ||
+        subscription.cancel_at_period_end
+      ) {
         await db
           .update(usersTable)
           .set({ plan: null, stripeSubscriptionId: null })
@@ -70,7 +78,6 @@ export const POST = async (request: Request) => {
         .where(eq(usersTable.stripeSubscriptionId, subscription.id));
       break;
     }
-    
   }
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });

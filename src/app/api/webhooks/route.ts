@@ -37,7 +37,14 @@ export const POST = async (request: Request) => {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId;
-      if (!userId) break;
+
+      console.log("[WEBHOOK] checkout.session.completed - userId:", userId);
+      console.log("[WEBHOOK] session.metadata:", JSON.stringify(session.metadata));
+
+      if (!userId) {
+        console.error("[WEBHOOK] userId not found in metadata - skipping");
+        break;
+      }
 
       const stripeCustomerId =
         typeof session.customer === "string"
@@ -49,10 +56,14 @@ export const POST = async (request: Request) => {
           ? session.subscription
           : (session.subscription?.id ?? null);
 
-      await db
+      console.log("[WEBHOOK] Updating user:", userId, "customer:", stripeCustomerId, "subscription:", stripeSubscriptionId);
+
+      const result = await db
         .update(usersTable)
         .set({ stripeCustomerId, stripeSubscriptionId, plan: "essential" })
         .where(eq(usersTable.id, userId));
+
+      console.log("[WEBHOOK] DB update result:", JSON.stringify(result));
       break;
     }
 

@@ -12,7 +12,8 @@ export const auth = betterAuth({
   //
   // BASE URL
   //
-  baseURL: "http://localhost:3000",
+  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+  secret: process.env.BETTER_AUTH_SECRET,
 
   //
   // DATABASE

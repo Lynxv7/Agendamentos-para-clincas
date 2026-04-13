@@ -19,19 +19,15 @@ import {
 export function DatePicker({
   className,
 }: React.HTMLAttributes<HTMLDivElement>) {
-  const [from, setFrom] = useQueryState(
-    "from",
-    parseAsIsoDate.withDefault(new Date()),
-  );
+  const [from, setFrom] = useQueryState("from", parseAsIsoDate);
+  const [to, setTo] = useQueryState("to", parseAsIsoDate);
 
-  const [to, setTo] = useQueryState(
-    "to",
-    parseAsIsoDate.withDefault(addDays(new Date(), 30)),
-  );
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
 
   const date: DateRange = {
-    from,
-    to,
+    from: from ?? undefined,
+    to: to ?? undefined,
   };
 
   const handleDateSelect = async (dateRange: DateRange | undefined) => {
@@ -72,7 +68,7 @@ export function DatePicker({
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
 
-            {date?.from ? (
+            {mounted && date?.from ? (
               date?.to ? (
                 <>
                   {format(date.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}

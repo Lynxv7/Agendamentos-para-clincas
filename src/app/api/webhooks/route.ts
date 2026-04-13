@@ -51,6 +51,17 @@ export const POST = async (request: Request) => {
       break;
     }
 
+    case "customer.subscription.updated": {
+      const subscription = event.data.object as Stripe.Subscription;
+      if (subscription.status === "canceled" || subscription.cancel_at_period_end) {
+        await db
+          .update(usersTable)
+          .set({ plan: null, stripeSubscriptionId: null })
+          .where(eq(usersTable.stripeSubscriptionId, subscription.id));
+      }
+      break;
+    }
+
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription;
       await db

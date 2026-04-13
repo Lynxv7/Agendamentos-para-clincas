@@ -2,13 +2,9 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 
-import { dayjs } from "@/lib/dayjs"; // ✅ padrão global
+import { dayjs } from "@/lib/dayjs";
 
-import AppointmentTableAction from "./table-action";
-import type {
-  UpsertAppointmentFormDoctor,
-  UpsertAppointmentFormPatient,
-} from "./upsert-appointment-form";
+import AppointmentsTableActions from "./table-action";
 
 export type Appointment = {
   id: number;
@@ -16,24 +12,25 @@ export type Appointment = {
   patientId: number;
   doctorId: number;
   appointmentPriceInCents: number;
-  serviceType?: string | null;
-  description?: string | null;
-  patient?: {
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date | null;
+  clinicId: number;
+  patient: {
+    id: number;
     name: string;
-  } | null;
-  doctor?: {
+    email: string;
+    phoneNumber: string;
+    sex: "male" | "female";
+  };
+  doctor: {
+    id: number;
     name: string;
-    specialty?: string | null;
-  } | null;
+    specialty: string;
+  };
 };
 
-type NewType = UpsertAppointmentFormDoctor;
-
-export const getColumns = (
-  patients: UpsertAppointmentFormPatient[],
-  doctors: NewType[],
-  userTimezone: string, // ✅ NOVO
-): ColumnDef<Appointment>[] => [
+export const getColumns = (userTimezone: string): ColumnDef<Appointment>[] => [
   {
     id: "patient",
     header: "Paciente",
@@ -53,7 +50,7 @@ export const getColumns = (
     cell: (params) => {
       const date = params.row.original.date;
 
-      // ✅ CORRETO: usa timezone do usuário
+      // CORRETO: usa timezone do usuário
       return dayjs(date).tz(userTimezone).format("DD/MM/YYYY HH:mm");
     },
   },
@@ -69,7 +66,7 @@ export const getColumns = (
     accessorFn: (row) => row.description ?? "-",
     cell: (params) => (
       <span
-        className="block max-w-[200px] truncate"
+        className="block max-w-50 truncate"
         title={params.row.original.description ?? ""}
       >
         {params.row.original.description || "-"}
@@ -91,13 +88,7 @@ export const getColumns = (
     cell: (params) => {
       const appointment = params.row.original;
 
-      return (
-        <AppointmentTableAction
-          appointment={appointment}
-          patients={patients}
-          doctors={doctors}
-        />
-      );
+      return <AppointmentsTableActions appointment={appointment} />;
     },
   },
 ];

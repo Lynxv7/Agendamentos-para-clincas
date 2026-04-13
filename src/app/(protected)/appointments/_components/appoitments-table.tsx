@@ -51,11 +51,7 @@ export function AppointmentsTable({ data, patients, doctors }: Props) {
     localTime: dayjs(appointment.date).tz(userTimezone).format("HH:mm"),
   }));
 
-  const columns = getColumns(
-    patients,
-    doctors,
-    userTimezone, // 👈 importante passar
-  ) as ColumnDef<Appointment, unknown>[];
+  const columns = getColumns(userTimezone) as ColumnDef<Appointment, unknown>[];
 
   return <DataTable columns={columns} data={normalizedData} />;
 }

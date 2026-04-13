@@ -4,6 +4,14 @@ import Stripe from "stripe";
 import { db } from "@/db";
 import { usersTable } from "@/db/schema";
 
+export const dynamic = "force-dynamic";
+
+export const GET = async () => {
+  return new Response(JSON.stringify({ status: "webhook endpoint online" }), {
+    status: 200,
+  });
+};
+
 export const POST = async (request: Request) => {
   if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
     console.error("[WEBHOOK] Missing env vars");
@@ -39,7 +47,10 @@ export const POST = async (request: Request) => {
       const userId = session.metadata?.userId;
 
       console.log("[WEBHOOK] checkout.session.completed - userId:", userId);
-      console.log("[WEBHOOK] session.metadata:", JSON.stringify(session.metadata));
+      console.log(
+        "[WEBHOOK] session.metadata:",
+        JSON.stringify(session.metadata),
+      );
 
       if (!userId) {
         console.error("[WEBHOOK] userId not found in metadata - skipping");
@@ -56,7 +67,14 @@ export const POST = async (request: Request) => {
           ? session.subscription
           : (session.subscription?.id ?? null);
 
-      console.log("[WEBHOOK] Updating user:", userId, "customer:", stripeCustomerId, "subscription:", stripeSubscriptionId);
+      console.log(
+        "[WEBHOOK] Updating user:",
+        userId,
+        "customer:",
+        stripeCustomerId,
+        "subscription:",
+        stripeSubscriptionId,
+      );
 
       const result = await db
         .update(usersTable)

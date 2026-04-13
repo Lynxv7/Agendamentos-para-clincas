@@ -22,10 +22,10 @@ import DashboardCards from "./_components/stats-cards";
 import { TodayAppointments } from "./_components/today-appointments";
 
 interface DashboardPageProps {
-  searchParams?: {
+  searchParams?: Promise<{
     from?: string;
     to?: string;
-  };
+  }>;
 }
 
 const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
@@ -37,7 +37,9 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     redirect("/authentication");
   }
 
-  const clinicId = (session.user as { clinic?: { id: number }; plan?: string | null }).clinic?.id;
+  const clinicId = (
+    session.user as { clinic?: { id: number }; plan?: string | null }
+  ).clinic?.id;
   const plan = (session.user as { plan?: string | null }).plan;
 
   if (!clinicId) {
@@ -48,7 +50,9 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     redirect("/subscription-required");
   }
 
-  if (!searchParams?.from || !searchParams?.to) {
+  const resolvedSearchParams = await searchParams;
+
+  if (!resolvedSearchParams?.from || !resolvedSearchParams?.to) {
     redirect(
       `/dashboard?from=${dayjs().format("YYYY-MM-DD")}&to=${dayjs()
         .add(1, "month")
@@ -66,8 +70,8 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     dailyAppointments,
     todayAppointments,
   } = await getDashboard({
-    from: searchParams.from,
-    to: searchParams.to,
+    from: resolvedSearchParams!.from!,
+    to: resolvedSearchParams!.to!,
     clinicId,
   });
 

@@ -1,9 +1,8 @@
 "use server";
 
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-
-import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { appointmentsTable, doctorsTable } from "@/db/schema";
@@ -92,6 +91,7 @@ export const createAppointment = actionClient
       clinicId: user.clinic.id,
       date: appointmentUTC.toDate(), // ✅ UTC correto
       appointmentPriceInCents: Math.round(parsedInput.appointmentPrice * 100),
+      description: parsedInput.description ?? null,
     });
 
     revalidatePath("/appointments");

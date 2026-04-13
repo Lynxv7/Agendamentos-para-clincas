@@ -23,7 +23,7 @@ const DoctorsPage = async () => {
     headers: await headers(),
   });
 
-  // ✅ Tipagem correta
+  // Tipagem correta
   type UserWithClinic = {
     id: string;
     clinic?: {
@@ -39,6 +39,11 @@ const DoctorsPage = async () => {
 
   if (!user.clinic?.id) {
     redirect("/clinic-form");
+  }
+
+  const plan = (session?.user as { plan?: string | null })?.plan;
+  if (plan !== "essential") {
+    redirect("/subscription-required");
   }
 
   const doctors = await db.query.doctorsTable.findMany({

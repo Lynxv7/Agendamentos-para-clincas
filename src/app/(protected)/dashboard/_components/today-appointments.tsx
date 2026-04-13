@@ -7,6 +7,7 @@ import { dayjs } from "@/lib/dayjs";
 interface TodayAppointment {
   id: number;
   date: Date;
+  description?: string | null;
   patient: { name: string } | null;
   doctor: { name: string } | null;
 }
@@ -47,6 +48,9 @@ export function TodayAppointments({ appointments }: TodayAppointmentsProps) {
                 <th className="pb-3 text-left font-medium text-slate-800">
                   Horário
                 </th>
+                <th className="pb-3 text-left font-medium text-slate-800">
+                  Descrição
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -77,6 +81,12 @@ export function TodayAppointments({ appointments }: TodayAppointmentsProps) {
                     </td>
                     <td className="py-3 text-slate-700">
                       {date.format("HH:mm")}
+                    </td>
+                    <td
+                      className="max-w-[180px] truncate py-3 text-slate-700"
+                      title={appointment.description ?? ""}
+                    >
+                      {appointment.description || "-"}
                     </td>
                   </tr>
                 );

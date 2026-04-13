@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-// 🔹 internos
+// internos
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { auth } from "@/lib/auth";
 
@@ -9,11 +9,11 @@ import LoginForm from "./components/login-form";
 import SignUpForm from "./components/sign-up-form";
 
 //
-// 🚀 PAGE
+// PAGE
 //
 const AuthenticationPage = async () => {
   //
-  // 🔐 CHECK SESSION
+  // CHECK SESSION
   //
   const session = await auth.api.getSession({
     headers: await headers(),

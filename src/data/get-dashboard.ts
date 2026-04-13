@@ -124,6 +124,7 @@ export const getDashboard = async ({ from, to, clinicId }: Params) => {
       .select({
         id: appointmentsTable.id,
         date: appointmentsTable.date,
+        description: appointmentsTable.description,
         patient: {
           name: patientsTable.name,
         },

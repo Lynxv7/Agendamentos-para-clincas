@@ -109,6 +109,7 @@ const upsertAppointment = actionClient
         date: appointmentUTC.toDate(), // ✅ UTC
         appointmentPriceInCents,
         clinicId: user.clinic.id,
+        description: rest.description ?? null,
       })
       .onConflictDoUpdate({
         target: [appointmentsTable.id],
@@ -117,6 +118,7 @@ const upsertAppointment = actionClient
           doctorId,
           date: appointmentUTC.toDate(),
           appointmentPriceInCents,
+          description: rest.description ?? null,
         },
       });
 

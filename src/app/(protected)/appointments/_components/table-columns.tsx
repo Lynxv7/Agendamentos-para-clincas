@@ -17,6 +17,7 @@ export type Appointment = {
   doctorId: number;
   appointmentPriceInCents: number;
   serviceType?: string | null;
+  description?: string | null;
   patient?: {
     name: string;
   } | null;
@@ -61,6 +62,19 @@ export const getColumns = (
     header: "Especialidade",
     accessorFn: (row) => row.doctor?.specialty ?? "-",
     cell: (params) => params.row.original.doctor?.specialty ?? "-",
+  },
+  {
+    id: "description",
+    header: "Descrição",
+    accessorFn: (row) => row.description ?? "-",
+    cell: (params) => (
+      <span
+        className="block max-w-[200px] truncate"
+        title={params.row.original.description ?? ""}
+      >
+        {params.row.original.description || "-"}
+      </span>
+    ),
   },
   {
     id: "price",

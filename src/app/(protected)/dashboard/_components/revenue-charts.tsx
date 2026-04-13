@@ -66,7 +66,10 @@ export function RevenueChart({ daylyAppointmentsData }: RevenueChartProps) {
       </CardHeader>
 
       <CardContent>
-        <ChartContainer config={chartConfig} className="min-h-[200px]">
+        <ChartContainer
+          config={chartConfig}
+          className="max-h-[480px] min-h-[400px] w-full"
+        >
           <AreaChart data={chartData}>
             <CartesianGrid vertical={false} />
 

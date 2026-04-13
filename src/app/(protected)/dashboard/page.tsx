@@ -37,10 +37,15 @@ const DashboardPage = async ({ searchParams }: DashboardPageProps) => {
     redirect("/authentication");
   }
 
-  const clinicId = (session.user as { clinic?: { id: number } }).clinic?.id;
+  const clinicId = (session.user as { clinic?: { id: number }; plan?: string | null }).clinic?.id;
+  const plan = (session.user as { plan?: string | null }).plan;
 
   if (!clinicId) {
     redirect("/clinic-form");
+  }
+
+  if (plan !== "essential") {
+    redirect("/subscription-required");
   }
 
   if (!searchParams?.from || !searchParams?.to) {

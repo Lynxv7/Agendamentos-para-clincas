@@ -42,6 +42,11 @@ const PatientsPage = async () => {
     redirect("/clinic-form");
   }
 
+  const plan = (session?.user as { plan?: string | null })?.plan;
+  if (plan !== "essential") {
+    redirect("/subscription-required");
+  }
+
   // Buscar pacientes
   const patients = await db.query.patientsTable.findMany({
     where: eq(patientsTable.clinicId, user.clinic.id),

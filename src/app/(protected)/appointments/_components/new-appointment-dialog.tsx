@@ -2,8 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarIcon } from "lucide-react";
-import { useAction } from "next-safe-action/hooks";
 import { useRouter } from "next/navigation";
+import { useAction } from "next-safe-action/hooks";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -92,6 +92,7 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
       appointmentPrice: 0,
       date: "",
       timeZone: USER_TIMEZONE,
+      description: "",
     },
   });
 
@@ -417,6 +418,26 @@ const NewAppointmentDialog = ({ patients, doctors }: Props) => {
                 </SelectContent>
               </Select>
             </FormItem>
+
+            {/* Descrição */}
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Descrição</FormLabel>
+                  <FormControl>
+                    <textarea
+                      {...field}
+                      placeholder="Descreva o motivo ou observações da consulta"
+                      rows={3}
+                      className="border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <DialogFooter>
               <Button type="submit" disabled={isCreating}>

@@ -40,10 +40,10 @@ interface Props {
 }
 
 export function AppointmentsTable({ data, patients, doctors }: Props) {
-  // 🔥 timezone do usuário
+  // timezone do usuário
   const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  // 🔥 normalizar datas antes de passar para tabela
+  // normalizar datas antes de passar para tabela
   const normalizedData = data.map((appointment) => ({
     ...appointment,
     // cria campo formatado seguro

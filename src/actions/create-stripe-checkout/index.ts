@@ -13,9 +13,6 @@ export const createStripeCheckout = actionClient.action(async () => {
   if (!authSession?.user) {
     throw new Error("Unauthorized");
   }
-  if (!("clinic" in authSession.user) || !authSession.user.clinic) {
-    throw new Error("User does not have a clinic");
-  }
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new Error("Stripe secret key is not configured");
   }
@@ -25,18 +22,15 @@ export const createStripeCheckout = actionClient.action(async () => {
   const checkoutSession = await stripeClient.checkout.sessions.create({
     payment_method_types: ["card"],
     mode: "subscription",
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscription-required`,
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscription-required`,
     customer_email: authSession.user.email,
-    // metadata no nível da sessão — acessível no evento checkout.session.completed
     metadata: {
       userId: authSession.user.id,
-      clinicId: String(authSession.user.clinic.id),
     },
     subscription_data: {
       metadata: {
         userId: authSession.user.id,
-        clinicId: String(authSession.user.clinic.id),
       },
     },
     line_items: [

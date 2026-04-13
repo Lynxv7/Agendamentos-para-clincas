@@ -214,6 +214,8 @@ export const appointmentsTable = pgTable("appointments", {
   // NOVO CAMPO
   appointmentPriceInCents: integer("appointment_price_in_cents").notNull(),
 
+  description: text("description"),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

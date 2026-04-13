@@ -28,4 +28,6 @@ export const createAppointmentSchema = z.object({
   }),
 
   serviceType: z.string().optional(),
+
+  description: z.string().optional(),
 });

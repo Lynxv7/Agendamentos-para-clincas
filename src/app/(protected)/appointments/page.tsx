@@ -40,6 +40,11 @@ const AppointmentsPage = async () => {
     redirect("/clinic-form");
   }
 
+  const plan = (session?.user as { plan?: string | null })?.plan;
+  if (plan !== "essential") {
+    redirect("/subscription-required");
+  }
+
   const clinicId = user.clinic.id;
 
   // 🚀 paralelismo

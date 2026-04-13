@@ -17,7 +17,7 @@ export const createStripeCheckout = actionClient.action(async () => {
     throw new Error("Stripe secret key is not configured");
   }
   const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: "2026-03-25.dahlia",
+    apiVersion: "2025-05-28.basil",
   });
   const checkoutSession = await stripeClient.checkout.sessions.create({
     payment_method_types: ["card"],

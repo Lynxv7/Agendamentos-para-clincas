@@ -42,6 +42,29 @@ export const POST = async (request: Request) => {
   console.log("[WEBHOOK] Event received:", event.type);
 
   switch (event.type) {
+    case "customer.subscription.created": {
+      const subscription = event.data.object as Stripe.Subscription;
+      const userId = subscription.metadata?.userId;
+
+      console.log("[WEBHOOK] customer.subscription.created - userId:", userId);
+
+      if (!userId) {
+        console.error("[WEBHOOK] userId not found in subscription metadata - skipping");
+        break;
+      }
+
+      await db
+        .update(usersTable)
+        .set({
+          stripeSubscriptionId: subscription.id,
+          plan: "essential",
+        })
+        .where(eq(usersTable.id, userId));
+
+      console.log("[WEBHOOK] Plan set to essential for user:", userId);
+      break;
+    }
+
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId;

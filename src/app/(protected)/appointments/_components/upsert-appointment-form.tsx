@@ -17,7 +17,7 @@ const upsertAppointment = actionClient
     const { id, ...rest } = parsedInput;
 
     const session = await auth.api.getSession({
-      headers: headers(), // ✅ corrigido
+      headers: await headers(), // ✅ corrigido
     });
 
     type UserWithClinic = {

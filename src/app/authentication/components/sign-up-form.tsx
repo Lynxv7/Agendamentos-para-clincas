@@ -3,12 +3,18 @@
 // libs externas
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
 
 // internos
+import { signUpUser } from "@/actions/sign-up-user";
+import {
+  passwordRequirementMessage,
+  signUpUserSchema,
+  type SignUpUserInput,
+} from "@/actions/sign-up-user/schema";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,31 +36,34 @@ import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 
 //
-// SCHEMA
-//
-const registerSchema = z.object({
-  name: z.string().trim().min(1, "Nome é obrigatório"),
-  email: z
-    .string()
-    .trim()
-    .min(1, "E-mail é obrigatório")
-    .email("E-mail inválido"),
-  password: z
-    .string()
-    .trim()
-    .min(8, "A senha deve ter pelo menos 8 caracteres"),
-});
-
-type SignUpFormValues = z.infer<typeof registerSchema>;
-
-//
 // COMPONENT
 //
 const SignUpForm = () => {
   const router = useRouter();
+  const signUpUserAction = useAction(signUpUser, {
+    onSuccess: async ({ input }) => {
+      await authClient.signIn.email(
+        {
+          email: input.email,
+          password: input.password,
+        },
+        {
+          onSuccess: () => {
+            router.push("/subscription-required");
+          },
+          onError: () => {
+            toast.error("Conta criada, mas não foi possível iniciar a sessão.");
+          },
+        },
+      );
+    },
+    onError: ({ error }) => {
+      toast.error(error.serverError ?? "Erro ao criar conta.");
+    },
+  });
 
-  const form = useForm<SignUpFormValues>({
-    resolver: zodResolver(registerSchema),
+  const form = useForm<SignUpUserInput>({
+    resolver: zodResolver(signUpUserSchema),
     defaultValues: {
       name: "",
       email: "",
@@ -65,27 +74,8 @@ const SignUpForm = () => {
   //
   // REGISTER
   //
-  const handleSubmit = async (values: SignUpFormValues) => {
-    await authClient.signUp.email(
-      {
-        name: values.name,
-        email: values.email,
-        password: values.password,
-      },
-      {
-        onSuccess: () => {
-          router.push("/subscription-required");
-        },
-        onError: (ctx) => {
-          if (ctx.error.code === "USER_ALREADY_EXISTS") {
-            toast.error("E-mail já cadastrado.");
-            return;
-          }
-
-          toast.error("Erro ao criar conta.");
-        },
-      },
-    );
+  const handleSubmit = async (values: SignUpUserInput) => {
+    signUpUserAction.execute(values);
   };
 
   return (
@@ -144,6 +134,9 @@ const SignUpForm = () => {
                   <FormControl>
                     <Input type="password" placeholder="********" {...field} />
                   </FormControl>
+                  <p className="text-xs leading-5 text-slate-500">
+                    {passwordRequirementMessage}
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -154,9 +147,9 @@ const SignUpForm = () => {
             <Button
               type="submit"
               className="w-full"
-              disabled={form.formState.isSubmitting}
+              disabled={signUpUserAction.isPending}
             >
-              {form.formState.isSubmitting ? (
+              {signUpUserAction.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 "Criar conta"

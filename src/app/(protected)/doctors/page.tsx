@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/page-container";
 import { db } from "@/db";
 import { doctorsTable } from "@/db/schema";
+import { getDoctorLimitByPlan } from "@/helpers/plan";
 import { auth } from "@/lib/auth";
 
 import AddDoctorButton from "./_components/add-doctor-button";
@@ -26,6 +27,7 @@ const DoctorsPage = async () => {
   // Tipagem correta
   type UserWithClinic = {
     id: string;
+    plan?: string | null;
     clinic?: {
       id: number;
     };
@@ -49,17 +51,25 @@ const DoctorsPage = async () => {
   const doctors = await db.query.doctorsTable.findMany({
     where: eq(doctorsTable.clinicId, user.clinic.id),
   });
+  const doctorLimit = getDoctorLimitByPlan(plan);
+  const hasReachedDoctorLimit = doctors.length >= doctorLimit;
 
   return (
     <PageContainer>
       <PageHeader>
         <PageHeaderContent>
           <PageTitle>Médicos</PageTitle>
-          <PageDescription>Gerencie os médicos da sua clínica</PageDescription>
+          <PageDescription>
+            Gerencie os médicos da sua clínica. {doctors.length}/{doctorLimit}{" "}
+            vagas utilizadas no plano Essential.
+            {hasReachedDoctorLimit
+              ? " Limite de cadastro atingido para este plano."
+              : " Ainda há vagas disponíveis para novos cadastros."}
+          </PageDescription>
         </PageHeaderContent>
 
         <PageActions>
-          <AddDoctorButton />
+          <AddDoctorButton disabled={hasReachedDoctorLimit} />
         </PageActions>
       </PageHeader>
 

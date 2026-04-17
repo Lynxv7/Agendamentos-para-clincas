@@ -8,14 +8,19 @@ import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 
 import UpsertDoctorForm from "./upsert-doctor-form";
 
-const AddDoctorButton = () => {
+interface AddDoctorButtonProps {
+  disabled?: boolean;
+}
+
+const AddDoctorButton = ({ disabled = false }: AddDoctorButtonProps) => {
   const [isOpen, setIsOpen] = useState(false);
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button>
+        <Button disabled={disabled}>
           <Plus />
-          Adicionar médico
+          {disabled ? "Limite atingido" : "Adicionar médico"}
         </Button>
       </DialogTrigger>
       <UpsertDoctorForm onSuccess={() => setIsOpen(false)} />

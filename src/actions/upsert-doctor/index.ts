@@ -1,5 +1,6 @@
 "use server";
 
+import { and, count, eq } from "drizzle-orm";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { revalidatePath } from "next/cache";
@@ -7,6 +8,7 @@ import { headers } from "next/headers";
 
 import { db } from "@/db";
 import { doctorsTable } from "@/db/schema";
+import { getDoctorLimitByPlan } from "@/helpers/plan";
 import { auth } from "@/lib/auth";
 import { actionClient } from "@/lib/next-safe-action";
 
@@ -39,6 +41,7 @@ export const upsertDoctor = actionClient
 
     type UserWithClinic = {
       id: string;
+      plan?: string | null;
       clinic?: {
         id: number;
       };
@@ -55,6 +58,35 @@ export const upsertDoctor = actionClient
     }
 
     const clinicId = user.clinic.id;
+    const doctorLimit = getDoctorLimitByPlan(user.plan);
+
+    if (!id) {
+      if (doctorLimit <= 0) {
+        throw new Error("Seu plano atual não permite cadastrar médicos.");
+      }
+
+      const [{ totalDoctors }] = await db
+        .select({ totalDoctors: count() })
+        .from(doctorsTable)
+        .where(eq(doctorsTable.clinicId, clinicId));
+
+      if (totalDoctors >= doctorLimit) {
+        throw new Error(
+          `Seu plano permite cadastrar até ${doctorLimit} médicos.`,
+        );
+      }
+    } else {
+      const existingDoctor = await db.query.doctorsTable.findFirst({
+        where: and(
+          eq(doctorsTable.id, id),
+          eq(doctorsTable.clinicId, clinicId),
+        ),
+      });
+
+      if (!existingDoctor) {
+        throw new Error("Médico não encontrado.");
+      }
+    }
 
     // 💾 UPSERT
     await db

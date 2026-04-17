@@ -49,7 +49,9 @@ export const POST = async (request: Request) => {
       console.log("[WEBHOOK] customer.subscription.created - userId:", userId);
 
       if (!userId) {
-        console.error("[WEBHOOK] userId not found in subscription metadata - skipping");
+        console.error(
+          "[WEBHOOK] userId not found in subscription metadata - skipping",
+        );
         break;
       }
 

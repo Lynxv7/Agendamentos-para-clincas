@@ -3,8 +3,8 @@
 // libs externas
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
-import { useAction } from "next-safe-action/hooks";
 import { useRouter } from "next/navigation";
+import { useAction } from "next-safe-action/hooks";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -12,8 +12,8 @@ import { toast } from "sonner";
 import { signUpUser } from "@/actions/sign-up-user";
 import {
   passwordRequirementMessage,
-  signUpUserSchema,
   type SignUpUserInput,
+  signUpUserSchema,
 } from "@/actions/sign-up-user/schema";
 import { Button } from "@/components/ui/button";
 import {
